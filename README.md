@@ -14,13 +14,13 @@ reference as resources.
 
 | Tool | Endpoint | Description |
 | --- | --- | --- |
-| `get_history` | `GET /public/history` | Historical OHLCV bars for an index over a time range. |
-| `get_symbol_info` | `GET /public/symbol_info` | The list of available index symbols and their metadata. |
+| `get_history` | `GET /v2/history` | Historical OHLCV bars for an index over a time range. |
+| `get_symbol_info` | `GET /v2/symbol_info` | The list of available index symbols and their metadata. |
 
 `get_history` parameters:
 
 - `symbol` (string, required) — e.g. `BVIV`, `EVIV`, `BVIV7D`, `EVIV90D`
-- `resolution` (string, default `D`) — intraday minutes as a number (`1`, `5`, `60`), or `D` / `W`
+- `resolution` (string, default `D`) — one of `1`, `5`, `15`, `30`, `60` (intraday minutes) or `D` (daily)
 - `from` (int, required) — start of range, Unix seconds
 - `to` (int, required) — end of range, Unix seconds
 
@@ -39,6 +39,14 @@ array of row objects for readability.
 | Volmex REST API reference | `https://rest-v1.volmex.finance/api` | REST API reference page. |
 
 Base API URL: `https://rest-v1.volmex.finance`
+
+## API key (optional)
+
+The v2 endpoints work without authentication on the free plan, which limits the
+accessible date range (historical ranges return HTTP 400). To send an API key
+and unlock fuller access, set the `VOLMEX_API_KEY` environment variable — the
+server appends it as an `apikey` query parameter on each API request. See the
+client config examples below for how to pass it.
 
 ## Setup
 
@@ -64,6 +72,9 @@ rather than run interactively.
 
 ```bash
 claude mcp add volmex -- node /absolute/path/to/mcp-server/dist/index.js
+
+# with an API key:
+claude mcp add volmex --env VOLMEX_API_KEY=your-key-here -- node /absolute/path/to/mcp-server/dist/index.js
 ```
 
 ### Claude Desktop / generic `mcpServers` config
@@ -73,7 +84,8 @@ claude mcp add volmex -- node /absolute/path/to/mcp-server/dist/index.js
   "mcpServers": {
     "volmex": {
       "command": "node",
-      "args": ["/absolute/path/to/mcp-server/dist/index.js"]
+      "args": ["/absolute/path/to/mcp-server/dist/index.js"],
+      "env": { "VOLMEX_API_KEY": "your-key-here" }
     }
   }
 }

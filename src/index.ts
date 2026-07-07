@@ -5,12 +5,17 @@
  * Exposes the Volmex implied-volatility index datafeed over the Model Context Protocol:
  *
  *   Tools
- *     - get_history      -> GET /public/history      (OHLCV bars for an index)
- *     - get_symbol_info  -> GET /public/symbol_info   (available index symbols)
+ *     - get_history      -> GET /v2/history      (OHLCV bars for an index)
+ *     - get_symbol_info  -> GET /v2/symbol_info   (available index symbols)
  *
  *   Resources
  *     - https://docs.volmex.finance        (documentation index)
  *     - https://rest-v1.volmex.finance/api (REST API reference)
+ *
+ * Configuration
+ *     - VOLMEX_API_KEY (optional) — sent as the `apikey` query parameter on API
+ *       requests. Without it the v2 endpoints operate on the free plan, which
+ *       rejects historical ranges (HTTP 400); a key unlocks fuller access.
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -25,11 +30,20 @@ const API_DOCS_URL = 'https://rest-v1.volmex.finance/api';
 
 const USER_AGENT = 'volmex-mcp-server/0.1.0';
 
+// Optional API key, supplied by the user via the VOLMEX_API_KEY environment
+// variable (set in the MCP client's server config). Sent as an `apikey` query
+// parameter on each request. Without it the v2 endpoints run on the free plan,
+// which limits the accessible date range.
+const API_KEY = process.env.VOLMEX_API_KEY;
+
 /** Fetch JSON from the Volmex API, throwing a readable error on failure. */
 async function apiGet(path: string, params: Record<string, string>): Promise<any> {
   const url = new URL(path, API_BASE);
   for (const [key, value] of Object.entries(params)) {
     url.searchParams.set(key, value);
+  }
+  if (API_KEY) {
+    url.searchParams.set('apikey', API_KEY);
   }
 
   const res = await fetch(url, {
@@ -38,7 +52,18 @@ async function apiGet(path: string, params: Record<string, string>): Promise<any
 
   const text = await res.text();
   if (!res.ok) {
-    throw new Error(`Volmex API ${res.status} ${res.statusText} for ${url.pathname}: ${text}`);
+    // v2 error bodies look like { statusCode, message }, where message may be a
+    // string or an array of strings. Surface it cleanly, falling back to raw text.
+    let detail = text;
+    try {
+      const body = JSON.parse(text);
+      if (body?.message) {
+        detail = Array.isArray(body.message) ? body.message.join('; ') : String(body.message);
+      }
+    } catch {
+      // Non-JSON error body — keep the raw text.
+    }
+    throw new Error(`Volmex API ${res.status} ${res.statusText} for ${url.pathname}: ${detail}`);
   }
 
   try {
@@ -83,7 +108,7 @@ server.registerTool(
     title: 'Get index history (OHLCV bars)',
     description:
       'Fetch historical OHLCV bars for a Volmex implied-volatility index from the ' +
-      'GET /public/history endpoint. Returns open/high/low/close values per bar ' +
+      'GET /v2/history endpoint. Returns open/high/low/close values per bar ' +
       'over the requested time range. Symbols include BVIV (Bitcoin 30d), EVIV ' +
       '(Ethereum 30d), and tenor variants like BVIV7D, EVIV90D — call get_symbol_info ' +
       'for the full list.',
@@ -91,14 +116,14 @@ server.registerTool(
       symbol: z.string().describe('Index symbol, e.g. BVIV, EVIV, BVIV7D, EVIV90D.'),
       resolution: z
         .string()
-        .describe('Bar resolution. Intraday minutes as a number ("1", "5", "60") or "D" for daily')
+        .describe('Bar resolution. One of "1", "5", "15", "30", "60" (intraday minutes) or "D" (daily).')
         .default('D'),
       from: z.number().int().describe('Start of range, Unix timestamp in seconds.'),
       to: z.number().int().describe('End of range, Unix timestamp in seconds.'),
     },
   },
   async ({ symbol, resolution, from, to }) => {
-    const data = await apiGet('/public/history', {
+    const data = await apiGet('/v2/history', {
       symbol,
       resolution,
       from: String(from),
@@ -141,7 +166,7 @@ server.registerTool(
     title: 'Get symbol info (available indices)',
     description:
       'List the Volmex implied-volatility indices available from the datafeed via the ' +
-      'GET /public/symbol_info endpoint. Returns each symbol with its description, ' +
+      'GET /v2/symbol_info endpoint. Returns each symbol with its description, ' +
       'currency, exchange, and precision metadata.',
     inputSchema: {
       group: z.string().optional().describe('Optional symbol group filter passed through to the UDF endpoint.'),
@@ -151,7 +176,7 @@ server.registerTool(
     const params: Record<string, string> = {};
     if (group) params.group = group;
 
-    const data = await apiGet('/public/symbol_info', params);
+    const data = await apiGet('/v2/symbol_info', params);
 
     if (data?.s && data.s !== 'ok') {
       return {
