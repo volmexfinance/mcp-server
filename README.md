@@ -70,14 +70,38 @@ rather than run interactively.
 
 ### Claude Code
 
+Installed from npm (the `volmex-mcp-server` bin is provided by the package):
+
 ```bash
-claude mcp add volmex -- node /absolute/path/to/mcp-server/dist/index.js
+claude mcp add volmex -- npx volmex-mcp-server
 
 # with an API key:
-claude mcp add volmex --env VOLMEX_API_KEY=your-key-here -- node /absolute/path/to/mcp-server/dist/index.js
+claude mcp add volmex --env VOLMEX_API_KEY=your-key-here -- npx volmex-mcp-server
+```
+
+Or running from a local clone (after `npm run build`):
+
+```bash
+claude mcp add volmex -- node /absolute/path/to/mcp-server/dist/index.js
 ```
 
 ### Claude Desktop / generic `mcpServers` config
+
+Installed from npm:
+
+```json
+{
+  "mcpServers": {
+    "volmex": {
+      "command": "npx",
+      "args": ["volmex-mcp-server"],
+      "env": { "VOLMEX_API_KEY": "your-key-here" }
+    }
+  }
+}
+```
+
+Or running from a local clone:
 
 ```json
 {
