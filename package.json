@@ -1,6 +1,6 @@
 {
   "name": "volmex-mcp-server",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "MCP server exposing Volmex Finance implied-volatility index data (/history and /symbol_info) as tools, plus Volmex docs and REST API references as resources.",
   "type": "module",
   "bin": {
